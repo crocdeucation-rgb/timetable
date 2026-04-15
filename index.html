@@ -420,9 +420,9 @@ function parseSchedule() {
     if (!str) return null;
     str = str.trim();
     const hm = str.match(/(\d{1,2}):(\d{2})/); if(hm) return parseInt(hm[1])*60+parseInt(hm[2]);
-    const minMatch = str.match(/(\d{1,2})시\s*(\d{1,2})분/); if(minMatch) { let h=parseInt(minMatch[1]); if(h<7)h+=12; return h*60+parseInt(minMatch[2]); }
-    const half = str.match(/(\d{1,2})시반/); if(half) return parseInt(half[1])*60+30;
-    const hr = str.match(/(\d{1,2})시/); if(hr){ let h=parseInt(hr[1]); if(h<7)h+=12; return h*60; }
+    const minMatch = str.match(/(\d{1,2})시\s*(\d{1,2})분/); if(minMatch) { let h=parseInt(minMatch[1]); if(h<12)h+=12; return h*60+parseInt(minMatch[2]); }
+    const half = str.match(/(\d{1,2})시반/); if(half) { let h=parseInt(half[1]); if(h<12)h+=12; return h*60+30; }
+    const hr = str.match(/(\d{1,2})시/); if(hr){ let h=parseInt(hr[1]); if(h<12)h+=12; return h*60; }
     return null;
   }
 
@@ -438,9 +438,9 @@ function parseSchedule() {
   let cleaned = text;
   skipWords.forEach(w => { cleaned = cleaned.replace(new RegExp(w, 'g'), ' '); });
 
-  // 이름+요일+시간 세그먼트 전체 패턴
+  // 이름+요일+시간 세그먼트 전체 패턴 (이름은 공백 포함 가능, 단 요일 키워드 직전까지)
   const segPattern = new RegExp(
-    '([가-힣a-zA-Z]+)\\s*(' + DAY_RE + ')\\s*(' + RANGE_RE + ')',
+    '([가-힣a-zA-Z][가-힣a-zA-Z\\s]{0,8}?)\\s+(' + DAY_RE + ')\\s*(' + RANGE_RE + ')',
     'g'
   );
 
