@@ -413,62 +413,56 @@ function parseSchedule() {
   const text = document.getElementById('scheduleText').value;
   schedules = [];
 
-  const dayGroupMap = { '월수금':['월','수','금'],'화목금':['화','목','금'],'월화수목금':['월','화','수','목','금'],'월수':['월','수'],'화목':['화','목'],'월화':['월','화'],'수목':['수','목'],'화금':['화','금'],'월목':['월','목'] };
-  const weekendKw = ['주말','토일','롤러','토요일','일요일','토 ','일 '];
+  const dayGroupMap = {
+    '월수금':['월','수','금'],'화목금':['화','목','금'],'월화수목금':['월','화','수','목','금'],
+    '월수':['월','수'],'화목':['화','목'],'월화':['월','화'],'수목':['수','목'],
+    '화금':['화','금'],'월목':['월','목'],'화수':['화','수']
+  };
+  const weekendKw = ['주말','토일','롤러','토요일','일요일'];
+  const skipWords = ['학교끝나고','바로','과목별','께서','갔다가서','귀가','쯤'];
 
   function parseTime(str) {
     if (!str) return null;
     str = str.trim();
-    const hm = str.match(/(\d{1,2}):(\d{2})/); if(hm) return parseInt(hm[1])*60+parseInt(hm[2]);
-    const minMatch = str.match(/(\d{1,2})시\s*(\d{1,2})분/); if(minMatch) { let h=parseInt(minMatch[1]); if(h<12)h+=12; return h*60+parseInt(minMatch[2]); }
-    const half = str.match(/(\d{1,2})시반/); if(half) { let h=parseInt(half[1]); if(h<12)h+=12; return h*60+30; }
-    const hr = str.match(/(\d{1,2})시/); if(hr){ let h=parseInt(hr[1]); if(h<12)h+=12; return h*60; }
+    let h, m2;
+    const hm = str.match(/(\d{1,2}):(\d{2})/);
+    if (hm) { h = parseInt(hm[1]); m2 = parseInt(hm[2]); if(h<12)h+=12; return h*60+m2; }
+    const minM = str.match(/(\d{1,2})시\s*(\d{1,2})분/);
+    if (minM) { h=parseInt(minM[1]); if(h<12)h+=12; return h*60+parseInt(minM[2]); }
+    const half = str.match(/(\d{1,2})시반/);
+    if (half) { h=parseInt(half[1]); if(h<12)h+=12; return h*60+30; }
+    const hr = str.match(/(\d{1,2})시/);
+    if (hr) { h=parseInt(hr[1]); if(h<12)h+=12; return h*60; }
     return null;
   }
 
-  function minToStr(m) { return `${Math.floor(m/60)}:${(m%60).toString().padStart(2,'0')}`; }
+  function minToStr(m) { return Math.floor(m/60)+':'+(m%60).toString().padStart(2,'0'); }
 
-  // 전체 텍스트에서 "이름 + (요일+시간)+" 패턴을 반복 추출
-  // 이름 기준으로 세그먼트 분리: 이름 = 한글/영문 단어 (요일 키워드 앞에 오는 것)
-  const DAY_RE = '(?:월수금|화목금|월화수목금|월수|화목|월화|수목|화금|월목|화수|[월화수목금]요일|[월화수목금])';
-  const TIME_RE = '(?:\\d{1,2}시\\s*\\d{1,2}분|\\d{1,2}시반|\\d{1,2}시|\\d{1,2}:\\d{2})';
-  const RANGE_RE = TIME_RE + '\\s*[-~]\\s*' + TIME_RE;
+  function parseDays(str) {
+    if (dayGroupMap[str]) return dayGroupMap[str];
+    const d = str.replace('요일','');
+    return ['토','일'].includes(d) ? [] : [d];
+  }
 
-  // skipWords 적용
   let cleaned = text;
-  skipWords.forEach(w => { cleaned = cleaned.replace(new RegExp(w, 'g'), ' '); });
+  skipWords.forEach(w => { cleaned = cleaned.replace(new RegExp(w,'g'),' '); });
 
-  // 이름+요일+시간 세그먼트 전체 패턴 (이름은 공백 포함 가능, 단 요일 키워드 직전까지)
-  const segPattern = new RegExp(
-    '([가-힣a-zA-Z][가-힣a-zA-Z\\s]{0,8}?)\\s+(' + DAY_RE + ')\\s*(' + RANGE_RE + ')',
-    'g'
-  );
+  // 패턴: 이름(한글/영문) + 공백 + 요일 + 공백 + 시작시간 + - + 종료시간
+  const dayPat = '(?:월수금|화목금|월화수목금|월수|화목|월화|수목|화금|월목|화수|[월화수목금]요일|[월화수목금])';
+  const timePat = '(?:\\d{1,2}시\\s*\\d{1,2}분|\\d{1,2}시반|\\d{1,2}시|\\d{1,2}:\\d{2})';
+  const fullPat = new RegExp('([가-힣a-zA-Z][가-힣a-zA-Z\\s]{0,10}?)\\s+('+dayPat+')\\s*('+timePat+')\\s*[-~]\\s*('+timePat+')', 'g');
 
-  let m;
-  while ((m = segPattern.exec(cleaned)) !== null) {
-    const fullMatch = m[0];
-    if (weekendKw.some(k => fullMatch.includes(k))) continue;
+  let match;
+  while ((match = fullPat.exec(cleaned)) !== null) {
+    const name = match[1].trim();
+    const dayStr = match[2];
+    const start = parseTime(match[3]);
+    const end = parseTime(match[4]);
 
-    const name = m[1].trim();
-    const dayStr = m[2];
-    const timeRange = m[3];
+    if (!name || start === null || end === null) continue;
+    if (weekendKw.some(k => dayStr.includes(k))) continue;
 
-    const trMatch = timeRange.match(
-      new RegExp('(' + TIME_RE + ')\\s*[-~]\\s*(' + TIME_RE + ')')
-    );
-    if (!trMatch) continue;
-
-    const start = parseTime(trMatch[1]);
-    const end = parseTime(trMatch[2]);
-    if (start === null || end === null) continue;
-
-    let days = [];
-    if (dayGroupMap[dayStr]) {
-      days = dayGroupMap[dayStr];
-    } else {
-      const d = dayStr.replace('요일','');
-      if (!['토','일'].includes(d)) days = [d];
-    }
+    const days = parseDays(dayStr);
     if (days.length === 0) continue;
 
     schedules.push({ name, days, start, end, startStr: minToStr(start), endStr: minToStr(end) });
@@ -477,13 +471,13 @@ function parseSchedule() {
   const list = document.getElementById('parsedList');
   list.innerHTML = '';
   if (schedules.length === 0) {
-    list.innerHTML = '<div class="err" style="font-size:12px;">인식된 일정이 없어요. 한 줄에 하나씩, 요일+시간 형태로 써주세요.</div>';
+    list.innerHTML = '<div class="err" style="font-size:12px;">인식된 일정이 없어요. 요일+시간 형태로 써주세요.</div>';
     return;
   }
-  schedules.forEach((s,i) => {
+  schedules.forEach((s, i) => {
     const item = document.createElement('div');
     item.className = 'parsed-item';
-    item.innerHTML = `<div><div class="pi-name">${s.name}</div><div class="pi-detail">${s.days.join('/')} · ${s.startStr}~${s.endStr}</div></div><button class="del-btn" onclick="delSchedule(${i})">×</button>`;
+    item.innerHTML = '<div><div class="pi-name">'+s.name+'</div><div class="pi-detail">'+s.days.join('/')+' · '+s.startStr+'~'+s.endStr+'</div></div><button class="del-btn" onclick="delSchedule('+i+')">×</button>';
     list.appendChild(item);
   });
 }
