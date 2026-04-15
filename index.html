@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시간표 배정기</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Noto Sans KR', sans-serif; background: #f0f2f5; min-height: 100vh; padding: 20px; color: #1a1a2e; }
+.container { max-width: 680px; margin: 0 auto; }
+.header { background: #0D1B3E; color: white; padding: 24px; border-radius: 16px 16px 0 0; margin-bottom: 2px; }
+.header h1 { font-size: 20px; font-weight: 700; }
+.header p { font-size: 13px; color: rgba(255,255,255,0.6); margin-top: 4px; }
+.card { background: white; padding: 24px; margin-bottom: 2px; }
+.card:last-of-type { border-radius: 0 0 16px 16px; }
+.section-title { font-size: 13px; font-weight: 700; color: #E8A020; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid #f0f2f5; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.form-group label { display: block; font-size: 12px; font-weight: 500; color: #666; margin-bottom: 6px; }
+.form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px 12px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 14px; font-family: 'Noto Sans KR', sans-serif; color: #1a1a2e; background: white; transition: border-color 0.2s; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #0D1B3E; }
+.form-group textarea { resize: vertical; min-height: 80px; line-height: 1.6; }
+.hint { font-size: 12px; color: #999; margin-top: 6px; line-height: 1.6; }
+.btn-secondary { padding: 9px 18px; background: #f0f2f5; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; font-family: 'Noto Sans KR', sans-serif; cursor: pointer; color: #1a1a2e; transition: all 0.2s; margin-top: 8px; }
+.btn-secondary:hover { background: #e0e2e5; }
+.parsed-list { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.parsed-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #f8f9ff; border: 1.5px solid #e8eaff; border-radius: 8px; font-size: 13px; }
+.pi-name { font-weight: 600; color: #1a1a2e; }
+.pi-detail { color: #888; font-size: 12px; margin-top: 2px; }
+.del-btn { background: none; border: none; cursor: pointer; color: #ccc; font-size: 18px; line-height: 1; padding: 0 4px; }
+.del-btn:hover { color: #e53935; }
+
+/* 과목 선택 */
+.subject-cats { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.cat-btn { padding: 9px 20px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; background: white; color: #1a1a2e; font-family: 'Noto Sans KR', sans-serif; transition: all 0.2s; }
+.cat-btn:hover { border-color: #0D1B3E; }
+.cat-btn.active { background: #0D1B3E; color: white; border-color: #0D1B3E; }
+.level-panel { border: 1.5px solid #e8eaff; border-radius: 10px; padding: 14px; margin-bottom: 10px; display: none; background: #f8f9ff; }
+.level-panel.show { display: block; }
+.level-panel-title { font-size: 12px; color: #888; font-weight: 600; margin-bottom: 10px; }
+.level-grid { display: flex; gap: 8px; flex-wrap: wrap; }
+.level-chip { padding: 7px 14px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 13px; cursor: pointer; background: white; color: #1a1a2e; font-family: 'Noto Sans KR', sans-serif; transition: all 0.2s; user-select: none; }
+.level-chip:hover { border-color: #0D1B3E; }
+.level-chip.selected { background: #0D1B3E; color: white; border-color: #0D1B3E; }
+.selected-tags { margin-top: 12px; display: flex; gap: 6px; flex-wrap: wrap; min-height: 30px; }
+.sel-tag { display: flex; align-items: center; gap: 6px; padding: 5px 12px; background: #f0f2f5; border-radius: 20px; font-size: 12px; font-weight: 500; color: #1a1a2e; }
+.sel-tag button { background: none; border: none; cursor: pointer; color: #aaa; font-size: 15px; padding: 0; line-height: 1; }
+.sel-tag button:hover { color: #e53935; }
+
+.calc-btn { width: 100%; padding: 16px; background: #0D1B3E; color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; font-family: 'Noto Sans KR', sans-serif; cursor: pointer; margin-top: 8px; transition: all 0.2s; }
+.calc-btn:hover { background: #1a2f5e; }
+
+.result-card { background: #0D1B3E; color: white; padding: 24px; border-radius: 16px; margin-top: 12px; display: none; }
+.result-card.show { display: block; }
+.result-section { margin-bottom: 20px; }
+.result-section:last-child { margin-bottom: 0; }
+.result-num { font-size: 13px; color: rgba(255,255,255,0.5); margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px; }
+.result-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 14px; }
+.result-row:last-child { border-bottom: none; }
+.subj-name { color: rgba(255,255,255,0.6); }
+.time-val { font-weight: 600; }
+
+.message-box { background: #f8f9ff; border: 1.5px solid #e0e4ff; border-radius: 12px; padding: 16px; margin-top: 12px; font-size: 13px; line-height: 1.9; white-space: pre-wrap; color: #1a1a2e; display: none; }
+.message-box.show { display: block; }
+.copy-btn { width: 100%; padding: 12px; background: #E8A020; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; font-family: 'Noto Sans KR', sans-serif; cursor: pointer; margin-top: 8px; transition: all 0.2s; display: none; }
+.copy-btn.show { display: block; }
+.copy-btn:hover { background: #d4911a; }
+.err { color: #e53935; font-size: 13px; padding: 8px 0; }
+
+@media (max-width: 480px) {
+  .form-row { grid-template-columns: 1fr; }
+  .subject-cats { gap: 6px; }
+  .cat-btn { padding: 8px 14px; font-size: 13px; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>시간표 배정기</h1>
+    <p>아라온스쿨 내부용</p>
+  </div>
+
+  <!-- 학생 정보 -->
+  <div class="card">
+    <div class="section-title">학생 정보</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>학생 이름</label>
+        <input type="text" id="studentName" placeholder="김지우">
+      </div>
+      <div class="form-group">
+        <label>학년</label>
+        <select id="grade" onchange="onGradeChange()">
+          <option value="초4">초4</option>
+          <option value="초5" selected>초5</option>
+          <option value="초6">초6</option>
+          <option value="중1">중1</option>
+          <option value="중2">중2</option>
+          <option value="중3">중3</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- 기존 일정 -->
+  <div class="card">
+    <div class="section-title">학생 기존 일정</div>
+    <div class="form-group">
+      <textarea id="scheduleText" placeholder="영어학원 월수 2시반-4시 피아노 화금 3시-4시 할머님 목 4시-5시 미술 화 5시-7시"></textarea>
+    </div>
+    <div class="hint">요일 + 시간 형태로 붙여넣으면 자동으로 읽어요. 주말 일정은 무시됩니다.</div>
+    <button class="btn-secondary" onclick="parseSchedule()">일정 읽기</button>
+    <div class="parsed-list" id="parsedList"></div>
+  </div>
+
+  <!-- 과목 선택 -->
+  <div class="card">
+    <div class="section-title">수강 과목 선택</div>
+    <div class="subject-cats">
+      <button class="cat-btn" onclick="toggleCat('국어')">국어</button>
+      <button class="cat-btn" onclick="toggleCat('사회')">사회</button>
+      <button class="cat-btn" onclick="toggleCat('과학')">과학</button>
+      <button class="cat-btn" onclick="toggleCat('수학')">수학</button>
+      <button class="cat-btn" onclick="toggleCat('영어')">영어</button>
+    </div>
+    <div class="level-panel" id="panel-수학">
+      <div class="level-panel-title">수학 레벨 선택</div>
+      <div class="level-grid" id="math-levels"></div>
+    </div>
+    <div class="level-panel" id="panel-영어">
+      <div class="level-panel-title">영어 레벨 선택</div>
+      <div class="level-grid" id="eng-levels"></div>
+    </div>
+    <div class="selected-tags" id="selectedTags">
+      <span style="font-size:12px;color:#aaa;">선택된 과목이 없어요</span>
+    </div>
+  </div>
+
+  <!-- 계산 버튼 -->
+  <div class="card" style="border-radius:0 0 16px 16px;">
+    <button class="calc-btn" onclick="calculate()">가능한 시간표 찾기</button>
+    <div id="errMsg"></div>
+  </div>
+
+  <!-- 결과 -->
+  <div class="result-card" id="resultCard">
+    <div id="resultRows"></div>
+  </div>
+
+  <!-- 카톡 메시지 -->
+  <div class="message-box" id="messageBox"></div>
+  <button class="copy-btn" id="copyBtn" onclick="copyMessage()">카톡 메시지 복사하기</button>
+</div>
+
+<script>
+const ALL_GRADES = ['초4','초5','초6','중1','중2','중3'];
+
+const TIMETABLE = {
+  '초4': {
+    '국어':     { 월수: ['4:40','6:20','8:00'], 화목: ['5:30','7:10','8:50'] },
+    '수학기본': { 월수: ['5:30','7:10','8:50'], 화목: ['4:40','6:20','8:00'] },
+    '사회':     { 월수: ['5:30','7:10','8:50'], 화목: ['4:40','6:20','8:00'] },
+    '과학':     { 월수: ['4:40','6:20','8:00'], 화목: ['5:30','7:10','8:50'] },
+  },
+  '초5': {
+    '국어':     { 월수: ['4:40','6:20','8:00'], 화목: ['5:30','7:10','8:50'] },
+    '수학기본': { 월수: ['5:30','8:50'], 화목: ['6:20'] },
+    '수학심화': { 월수: ['7:10'], 화목: ['4:40','8:00'] },
+    '사회':     { 월수: ['5:30','7:10','8:50'], 화목: ['4:40','6:20','8:00'] },
+    '과학':     { 월수: ['4:40','6:20','8:00'], 화목: ['5:30','7:10','8:50'] },
+  },
+  '초6': {
+    '국어':     { 월수: ['4:40','6:20','8:00'], 화목: ['5:30','7:10','8:50'] },
+    '수학기본': { 월수: ['4:40','8:00'], 화목: ['7:10','9:40'] },
+    '수학심화': { 월수: ['6:20'], 화목: ['5:30','8:50'] },
+    '사회':     { 월수: ['5:30','7:10','8:50'], 화목: ['4:40','6:20','8:00'] },
+    '과학':     { 월수: ['5:30','7:10','8:50'], 화목: ['4:40','6:20','8:00'] },
+  },
+  '중1': {
+    '국어':     { 월수: ['5:30','7:10','8:50','9:40'], 화목: ['6:20','8:00'] },
+    '수학기본': { 월수: ['5:30','8:50'], 화목: ['6:20','10:30'] },
+    '수학심화': { 월수: ['7:10','9:40'], 화목: ['8:00'] },
+    '사회1':    { 월수: ['5:30','7:10','8:50'], 화목: ['6:20','8:00','9:40'] },
+    '과학':     { 월수: ['6:20','8:00'], 화목: ['5:30','7:10','8:50','9:40'] },
+  },
+  '중2': {
+    '국어':     { 월수: ['5:30','7:10','8:50','9:40'], 화목: ['6:20','8:00'] },
+    '수학기본': { 월수: ['5:30','8:50'], 화목: ['6:20','10:30'] },
+    '수학심화': { 월수: ['7:10','9:40'], 화목: ['8:00'] },
+    '사회':     { 월수: ['5:30','7:10','8:50'], 화목: ['6:20','8:00','9:40'] },
+    '과학':     { 월수: ['6:20','8:00'], 화목: ['5:30','7:10','8:50','9:40'] },
+  },
+  '중3': {
+    '국어':     { 월수: ['5:30','7:10','8:50','9:40'], 화목: ['6:20','8:00'] },
+    '수학기본': { 월수: ['5:30','8:50'], 화목: ['6:20','10:30'] },
+    '수학심화': { 월수: ['7:10','9:40'], 화목: ['8:00'] },
+    '사회':     { 월수: ['5:30','7:10','8:50'], 화목: ['6:20','8:00','9:40'] },
+    '과학':     { 월수: ['6:20','8:00'], 화목: ['5:30','7:10','8:50','9:40'] },
+  },
+};
+
+const ENGLISH = {
+  'Reading Lv.1': { 월수: ['5:30','7:10','8:50'], 화목: ['4:40','6:20','8:00'] },
+  'Reading Lv.2': { 월수: ['4:40','5:30','7:10'], 화목: ['5:30','6:20','8:50'] },
+  'Reading Lv.3': { 월수: ['6:20','8:00','8:50'], 화목: ['5:30','7:10','9:40'] },
+  'Reading Lv.4': { 월수: ['5:30','7:10','8:50','10:30'], 화목: ['6:20','8:00'] },
+  'Reading Lv.5': { 월수: ['8:00','9:40'], 화목: ['7:10','8:50','9:40','10:30'] },
+  'Grammar Lv.1': { 월: ['4:40'], 화: ['8:50'], 수: ['6:20'], 목: ['7:10'] },
+  'Grammar Lv.2': { 월: ['8:00'], 화: ['7:10'], 수: ['9:40'], 목: ['5:30'] },
+  'Grammar Lv.3': { 월: ['6:20'], 화: ['10:30'], 수: ['8:00'], 목: ['8:50'] },
+};
+
+const SOCIAL_KEY = { '중1':'사회1', '중2':'사회', '중3':'사회', '초4':'사회', '초5':'사회', '초6':'사회' };
+
+let schedules = [];
+let selectedSubjects = new Set();
+let activeCats = new Set();
+
+function onGradeChange() {
+  selectedSubjects.clear(); activeCats.clear();
+  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.level-panel').forEach(p => p.classList.remove('show'));
+  renderMathLevels(); renderEngLevels(); renderSelectedTags();
+}
+
+function getMathLevels() {
+  const levels = [];
+  ALL_GRADES.forEach(g => {
+    const data = TIMETABLE[g];
+    if (data['수학기본']) levels.push({ key: g+' 수학기본', label: g+' 수학기본' });
+    if (data['수학심화']) levels.push({ key: g+' 수학심화', label: g+' 수학심화' });
+  });
+  return levels;
+}
+
+function renderMathLevels() {
+  const cont = document.getElementById('math-levels'); cont.innerHTML = '';
+  getMathLevels().forEach(({ key, label }) => {
+    const chip = document.createElement('div');
+    chip.className = 'level-chip' + (selectedSubjects.has(key) ? ' selected' : '');
+    chip.textContent = label;
+    chip.onclick = () => toggleLevel(key, chip);
+    cont.appendChild(chip);
+  });
+}
+
+function renderEngLevels() {
+  const cont = document.getElementById('eng-levels'); cont.innerHTML = '';
+  Object.keys(ENGLISH).forEach(key => {
+    const isGrammar = key.includes('Grammar');
+    const displayKey = isGrammar ? key + ' (주1회)' : key;
+    const chip = document.createElement('div');
+    chip.className = 'level-chip' + (selectedSubjects.has(displayKey) ? ' selected' : '');
+    chip.textContent = displayKey;
+    chip.onclick = () => toggleLevel(displayKey, chip);
+    cont.appendChild(chip);
+  });
+}
+
+function toggleLevel(key, chip) {
+  if (selectedSubjects.has(key)) { selectedSubjects.delete(key); chip.classList.remove('selected'); }
+  else { selectedSubjects.add(key); chip.classList.add('selected'); }
+  renderSelectedTags();
+}
+
+function toggleCat(cat) {
+  const btn = [...document.querySelectorAll('.cat-btn')].find(b => b.textContent === cat);
+  if (cat === '수학') {
+    const panel = document.getElementById('panel-수학');
+    if (activeCats.has(cat)) { activeCats.delete(cat); btn.classList.remove('active'); panel.classList.remove('show'); }
+    else { activeCats.add(cat); btn.classList.add('active'); panel.classList.add('show'); renderMathLevels(); }
+    return;
+  }
+  if (cat === '영어') {
+    const panel = document.getElementById('panel-영어');
+    if (activeCats.has(cat)) { activeCats.delete(cat); btn.classList.remove('active'); panel.classList.remove('show'); }
+    else { activeCats.add(cat); btn.classList.add('active'); panel.classList.add('show'); renderEngLevels(); }
+    return;
+  }
+  const grade = document.getElementById('grade').value;
+  let subjKey = cat === '사회' ? (SOCIAL_KEY[grade] || '사회') : cat;
+  const fullKey = grade + ' ' + subjKey;
+  if (selectedSubjects.has(fullKey)) { selectedSubjects.delete(fullKey); btn.classList.remove('active'); activeCats.delete(cat); }
+  else { selectedSubjects.add(fullKey); btn.classList.add('active'); activeCats.add(cat); }
+  renderSelectedTags();
+}
+
+function renderSelectedTags() {
+  const cont = document.getElementById('selectedTags');
+  if (selectedSubjects.size === 0) { cont.innerHTML = '<span style="font-size:12px;color:#aaa;">선택된 과목이 없어요</span>'; return; }
+  cont.innerHTML = '';
+  selectedSubjects.forEach(s => {
+    const tag = document.createElement('div');
+    tag.className = 'sel-tag';
+    tag.innerHTML = `<span>${s}</span><button onclick="removeSubject('${s}')">×</button>`;
+    cont.appendChild(tag);
+  });
+}
+
+function removeSubject(key) {
+  selectedSubjects.delete(key);
+  const bare = key.replace(/^(초\d|중\d)\s/, '').replace(' (주1회)', '');
+  const cat = bare.includes('수학') ? '수학' : (bare.includes('Reading') || bare.includes('Grammar')) ? '영어' : bare;
+  if (!['수학','영어'].includes(cat)) {
+    const catBtn = [...document.querySelectorAll('.cat-btn')].find(b => b.textContent === cat);
+    if (catBtn) { catBtn.classList.remove('active'); activeCats.delete(cat); }
+  }
+  renderMathLevels(); renderEngLevels(); renderSelectedTags();
+}
+
+function timeToMin(t) { const [h, m] = t.split(':').map(Number); return h * 60 + (m || 0); }
+function overlaps(t1, t2) { return Math.abs(timeToMin(t1) - timeToMin(t2)) < 40; }
+
+function isBlocked(day, t) {
+  const bStart = timeToMin(t), bEnd = bStart + 40;
+  return schedules.some(s => s.days.includes(day) && bStart < s.end && bEnd > s.start);
+}
+
+function getSubjData(key) {
+  if (key.includes('Reading') || key.includes('Grammar')) {
+    const engKey = key.replace(' (주1회)', '');
+    return { type: 'english', data: ENGLISH[engKey], grammar: key.includes('Grammar') };
+  }
+  const parts = key.match(/^(초\d|중\d)\s(.+)$/);
+  if (!parts) return null;
+  const [, g, subj] = parts;
+  const data = (TIMETABLE[g] || {})[subj];
+  if (!data) return null;
+  return { type: 'regular', data };
+}
+
+function getPossibleSlots(key) {
+  const info = getSubjData(key);
+  if (!info) return [];
+  const slots = [];
+  if (info.type === 'english') {
+    if (info.grammar) {
+      ['월','화','수','목'].forEach(day => { (info.data[day]||[]).forEach(t => { if (!isBlocked(day,t)) slots.push({ days:[day], time:t }); }); });
+    } else {
+      (info.data['월수']||[]).forEach(t => { if (!isBlocked('월',t)&&!isBlocked('수',t)) slots.push({ days:['월','수'], time:t }); });
+      (info.data['화목']||[]).forEach(t => { if (!isBlocked('화',t)&&!isBlocked('목',t)) slots.push({ days:['화','목'], time:t }); });
+    }
+  } else {
+    (info.data['월수']||[]).forEach(t => { if (!isBlocked('월',t)&&!isBlocked('수',t)) slots.push({ days:['월','수'], time:t }); });
+    (info.data['화목']||[]).forEach(t => { if (!isBlocked('화',t)&&!isBlocked('목',t)) slots.push({ days:['화','목'], time:t }); });
+  }
+  return slots;
+}
+
+function findCombos(subjects, idx, current, results) {
+  if (results.length > 300) return;
+  if (idx === subjects.length) { results.push({ ...current }); return; }
+  const subj = subjects[idx];
+  subj.slots.forEach(slot => {
+    const conflict = Object.values(current).some(s => s.days.filter(d => slot.days.includes(d)).length > 0 && overlaps(s.time, slot.time));
+    if (!conflict) { current[subj.name] = slot; findCombos(subjects, idx+1, current, results); delete current[subj.name]; }
+  });
+}
+
+function calculate() {
+  const studentName = document.getElementById('studentName').value || '학생';
+  const subjects = [...selectedSubjects];
+  document.getElementById('errMsg').innerHTML = '';
+  if (subjects.length === 0) { document.getElementById('errMsg').innerHTML = '<div class="err">과목을 선택해주세요.</div>'; return; }
+  const subjWithSlots = subjects.map(s => ({ name: s, slots: getPossibleSlots(s) }));
+  const impossible = subjWithSlots.filter(s => s.slots.length === 0);
+  if (impossible.length > 0) { document.getElementById('errMsg').innerHTML = `<div class="err">가능한 시간 없음: ${impossible.map(s=>s.name).join(', ')}</div>`; return; }
+  const combos = [];
+  findCombos(subjWithSlots, 0, {}, combos);
+  const scored = combos.map(combo => {
+    const times = Object.values(combo); let mw=0, tt=0;
+    times.forEach(s => { if(s.days.includes('월')||s.days.includes('수')) mw++; if(s.days.includes('화')||s.days.includes('목')) tt++; });
+    return { combo, score: -Math.abs(mw-tt) };
+  }).sort((a,b) => b.score-a.score);
+  const top = scored.slice(0,3);
+  if (top.length === 0) { document.getElementById('errMsg').innerHTML = '<div class="err">가능한 조합이 없어요. 일정을 다시 확인해주세요.</div>'; return; }
+
+  const resultCard = document.getElementById('resultCard');
+  let html = '';
+  let kakaoMsg = `안녕하세요! ${studentName} 시간표 안내드립니다.\n\n`;
+
+  top.forEach(({ combo }, idx) => {
+    html += `<div class="result-section"><div class="result-num">${idx+1}안</div>`;
+    Object.entries(combo).forEach(([subj, slot]) => {
+      html += `<div class="result-row"><span class="subj-name">${subj}</span><span class="time-val">${slot.days.join('/')} ${slot.time}</span></div>`;
+    });
+    html += '</div>';
+    kakaoMsg += `<${idx+1}안>\n`;
+    Object.entries(combo).forEach(([subj, slot]) => { kakaoMsg += `${subj} — ${slot.days.join('/')} ${slot.time}\n`; });
+    kakaoMsg += '\n';
+  });
+  kakaoMsg += `${top.length}가지 안 중에 편하신 시간 선택해주세요 😊`;
+
+  resultCard.innerHTML = html;
+  resultCard.classList.add('show');
+  document.getElementById('messageBox').textContent = kakaoMsg;
+  document.getElementById('messageBox').classList.add('show');
+  document.getElementById('copyBtn').classList.add('show');
+  resultCard.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+function copyMessage() {
+  const msg = document.getElementById('messageBox').textContent;
+  navigator.clipboard.writeText(msg).then(() => {
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = '복사 완료!';
+    setTimeout(() => btn.textContent = '카톡 메시지 복사하기', 2000);
+  });
+}
+
+function parseSchedule() {
+  const text = document.getElementById('scheduleText').value;
+  schedules = [];
+  const dayGroupMap = { '월수금':['월','수','금'],'화목금':['화','목','금'],'월화수목금':['월','화','수','목','금'],'월수':['월','수'],'화목':['화','목'],'월화':['월','화'],'수목':['수','목'],'화금':['화','금'] };
+  const dayMap = { '월':'월','화':'화','수':'수','목':'목','금':'금','월요일':'월','화요일':'화','수요일':'수','목요일':'목','금요일':'금' };
+  const weekendKw = ['주말','토일','롤러','토요일','일요일'];
+  function parseTime(str) {
+    str = str.trim();
+    const hm = str.match(/(\d{1,2}):(\d{2})/); if(hm) return parseInt(hm[1])*60+parseInt(hm[2]);
+    const half = str.match(/(\d{1,2})시반/); if(half) return parseInt(half[1])*60+30;
+    const hr = str.match(/(\d{1,2})시/); if(hr){ let h=parseInt(hr[1]); if(h<7)h+=12; return h*60; }
+    return null;
+  }
+  function minToStr(m) { return `${Math.floor(m/60)}:${(m%60).toString().padStart(2,'0')}`; }
+  let cleaned = text.replace(/학교끝나고|바로|과목별|께서/g,' ');
+  const segments = cleaned.split(/(?=[가-힣a-zA-Z]+\s*(?:월수금|화목금|월화수목금|월수|화목|월화|수목|화금|[월화수목금]요일))/);
+  segments.forEach(seg => {
+    seg = seg.trim();
+    if (!seg || weekendKw.some(k => seg.includes(k))) return;
+    let days = [];
+    const dg = seg.match(/월수금|화목금|월화수목금|월수|화목|월화|수목|화금/);
+    if (dg) { days = dayGroupMap[dg[0]] || []; }
+    else {
+      const dy = seg.match(/[월화수목금]요일|[월화수목금]/g);
+      if (dy) { dy.forEach(d => { const mp=dayMap[d]; if(mp&&!['토','일'].includes(mp)) days.push(mp); }); days=[...new Set(days)]; }
+    }
+    if (days.length === 0) return;
+    const tr = seg.match(/(\d{1,2}시반?|\d{1,2}:\d{2})\s*[-~]\s*(\d{1,2}시반?|\d{1,2}:\d{2})/);
+    if (!tr) return;
+    const start=parseTime(tr[1]), end=parseTime(tr[2]);
+    if (start===null||end===null) return;
+    const nm = seg.match(/^([가-힣a-zA-Z\(\)]+)/);
+    const name = nm ? nm[1].replace(/[()]/g,'') : '일정';
+    schedules.push({ name, days, start, end, startStr:minToStr(start), endStr:minToStr(end) });
+  });
+  const list = document.getElementById('parsedList');
+  list.innerHTML = '';
+  if (schedules.length === 0) { list.innerHTML = '<div class="err" style="font-size:12px;">인식된 일정이 없어요. 다시 확인해주세요.</div>'; return; }
+  schedules.forEach((s,i) => {
+    const item = document.createElement('div');
+    item.className = 'parsed-item';
+    item.innerHTML = `<div><div class="pi-name">${s.name}</div><div class="pi-detail">${s.days.join('/')} · ${s.startStr}~${s.endStr}</div></div><button class="del-btn" onclick="delSchedule(${i})">×</button>`;
+    list.appendChild(item);
+  });
+}
+
+function delSchedule(i) { schedules.splice(i,1); parseSchedule(); document.getElementById('scheduleText'); }
+
+onGradeChange();
+</script>
+</body>
+</html>
