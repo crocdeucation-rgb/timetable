@@ -412,41 +412,65 @@ function copyMessage() {
 function parseSchedule() {
   const text = document.getElementById('scheduleText').value;
   schedules = [];
-  const dayGroupMap = { '월수금':['월','수','금'],'화목금':['화','목','금'],'월화수목금':['월','화','수','목','금'],'월수':['월','수'],'화목':['화','목'],'월화':['월','화'],'수목':['수','목'],'화금':['화','금'] };
-  const dayMap = { '월':'월','화':'화','수':'수','목':'목','금':'금','월요일':'월','화요일':'화','수요일':'수','목요일':'목','금요일':'금' };
-  const weekendKw = ['주말','토일','롤러','토요일','일요일'];
+
+  const dayGroupMap = { '월수금':['월','수','금'],'화목금':['화','목','금'],'월화수목금':['월','화','수','목','금'],'월수':['월','수'],'화목':['화','목'],'월화':['월','화'],'수목':['수','목'],'화금':['화','금'],'월목':['월','목'] };
+  const weekendKw = ['주말','토일','롤러','토요일','일요일','토 ','일 '];
+
   function parseTime(str) {
+    if (!str) return null;
     str = str.trim();
     const hm = str.match(/(\d{1,2}):(\d{2})/); if(hm) return parseInt(hm[1])*60+parseInt(hm[2]);
+    const minMatch = str.match(/(\d{1,2})시\s*(\d{1,2})분/); if(minMatch) { let h=parseInt(minMatch[1]); if(h<7)h+=12; return h*60+parseInt(minMatch[2]); }
     const half = str.match(/(\d{1,2})시반/); if(half) return parseInt(half[1])*60+30;
     const hr = str.match(/(\d{1,2})시/); if(hr){ let h=parseInt(hr[1]); if(h<7)h+=12; return h*60; }
     return null;
   }
+
   function minToStr(m) { return `${Math.floor(m/60)}:${(m%60).toString().padStart(2,'0')}`; }
-  let cleaned = text.replace(/학교끝나고|바로|과목별|께서/g,' ');
-  const segments = cleaned.split(/(?=[가-힣a-zA-Z]+\s*(?:월수금|화목금|월화수목금|월수|화목|월화|수목|화금|[월화수목금]요일))/);
-  segments.forEach(seg => {
-    seg = seg.trim();
-    if (!seg || weekendKw.some(k => seg.includes(k))) return;
-    let days = [];
-    const dg = seg.match(/월수금|화목금|월화수목금|월수|화목|월화|수목|화금/);
-    if (dg) { days = dayGroupMap[dg[0]] || []; }
-    else {
-      const dy = seg.match(/[월화수목금]요일|[월화수목금]/g);
-      if (dy) { dy.forEach(d => { const mp=dayMap[d]; if(mp&&!['토','일'].includes(mp)) days.push(mp); }); days=[...new Set(days)]; }
+
+  // 줄 단위로 나누고, 한 줄 안에서도 이름 기준으로 세그먼트 분리
+  const lines = text.split(/\n/).filter(l => l.trim());
+
+  lines.forEach(line => {
+    if (weekendKw.some(k => line.includes(k))) return;
+
+    // 이름 추출 (첫 한글/영문 단어)
+    const nameMatch = line.match(/^([가-힣a-zA-Z]+(?:[\s가-힣a-zA-Z]*)??)(?=\s*(?:월수금|화목금|월화수목금|월수|화목|월화|수목|화금|월목|[월화수목금]요일|[월화수목금]\s*\d))/);
+    if (!nameMatch) return;
+    const name = nameMatch[1].trim();
+    const rest = line.slice(nameMatch[0].length);
+
+    // rest 안에서 "요일그룹+시간" 또는 "단일요일+시간" 패턴을 반복 추출
+    // 패턴: (요일조합 | 단일요일) + 시간범위
+    const pattern = /(월수금|화목금|월화수목금|월수|화목|월화|수목|화금|월목|[월화수목금]요일|[월화수목금])\s*(\d{1,2}시\s*\d{1,2}분|\d{1,2}시반|\d{1,2}시|\d{1,2}:\d{2})\s*[-~]\s*(\d{1,2}시\s*\d{1,2}분|\d{1,2}시반|\d{1,2}시|\d{1,2}:\d{2})/g;
+
+    let m;
+    while ((m = pattern.exec(rest)) !== null) {
+      const dayStr = m[1];
+      const start = parseTime(m[2]);
+      const end = parseTime(m[3]);
+      if (start === null || end === null) continue;
+
+      let days = [];
+      if (dayGroupMap[dayStr]) {
+        days = dayGroupMap[dayStr];
+      } else {
+        // 단일 요일 or "월요일"
+        const d = dayStr.replace('요일','');
+        if (!['토','일'].includes(d)) days = [d];
+      }
+      if (days.length === 0) continue;
+
+      schedules.push({ name, days, start, end, startStr: minToStr(start), endStr: minToStr(end) });
     }
-    if (days.length === 0) return;
-    const tr = seg.match(/(\d{1,2}시반?|\d{1,2}:\d{2})\s*[-~]\s*(\d{1,2}시반?|\d{1,2}:\d{2})/);
-    if (!tr) return;
-    const start=parseTime(tr[1]), end=parseTime(tr[2]);
-    if (start===null||end===null) return;
-    const nm = seg.match(/^([가-힣a-zA-Z\(\)]+)/);
-    const name = nm ? nm[1].replace(/[()]/g,'') : '일정';
-    schedules.push({ name, days, start, end, startStr:minToStr(start), endStr:minToStr(end) });
   });
+
   const list = document.getElementById('parsedList');
   list.innerHTML = '';
-  if (schedules.length === 0) { list.innerHTML = '<div class="err" style="font-size:12px;">인식된 일정이 없어요. 다시 확인해주세요.</div>'; return; }
+  if (schedules.length === 0) {
+    list.innerHTML = '<div class="err" style="font-size:12px;">인식된 일정이 없어요. 한 줄에 하나씩, 요일+시간 형태로 써주세요.</div>';
+    return;
+  }
   schedules.forEach((s,i) => {
     const item = document.createElement('div');
     item.className = 'parsed-item';
@@ -455,7 +479,16 @@ function parseSchedule() {
   });
 }
 
-function delSchedule(i) { schedules.splice(i,1); parseSchedule(); document.getElementById('scheduleText'); }
+function delSchedule(i) {
+  schedules.splice(i, 1);
+  const list = document.getElementById('parsedList');
+  const items = list.querySelectorAll('.parsed-item');
+  if (items[i]) items[i].remove();
+  schedules.forEach((s, idx) => {
+    const item = list.querySelectorAll('.parsed-item')[idx];
+    if (item) item.querySelector('.del-btn').setAttribute('onclick', `delSchedule(${idx})`);
+  });
+}
 
 onGradeChange();
 </script>
