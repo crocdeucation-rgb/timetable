@@ -428,42 +428,51 @@ function parseSchedule() {
 
   function minToStr(m) { return `${Math.floor(m/60)}:${(m%60).toString().padStart(2,'0')}`; }
 
-  // 줄 단위로 나누고, 한 줄 안에서도 이름 기준으로 세그먼트 분리
-  const lines = text.split(/\n/).filter(l => l.trim());
+  // 전체 텍스트에서 "이름 + (요일+시간)+" 패턴을 반복 추출
+  // 이름 기준으로 세그먼트 분리: 이름 = 한글/영문 단어 (요일 키워드 앞에 오는 것)
+  const DAY_RE = '(?:월수금|화목금|월화수목금|월수|화목|월화|수목|화금|월목|화수|[월화수목금]요일|[월화수목금])';
+  const TIME_RE = '(?:\\d{1,2}시\\s*\\d{1,2}분|\\d{1,2}시반|\\d{1,2}시|\\d{1,2}:\\d{2})';
+  const RANGE_RE = TIME_RE + '\\s*[-~]\\s*' + TIME_RE;
 
-  lines.forEach(line => {
-    if (weekendKw.some(k => line.includes(k))) return;
+  // skipWords 적용
+  let cleaned = text;
+  skipWords.forEach(w => { cleaned = cleaned.replace(new RegExp(w, 'g'), ' '); });
 
-    // 이름 추출 (첫 한글/영문 단어)
-    const nameMatch = line.match(/^([가-힣a-zA-Z]+(?:[\s가-힣a-zA-Z]*)??)(?=\s*(?:월수금|화목금|월화수목금|월수|화목|월화|수목|화금|월목|[월화수목금]요일|[월화수목금]\s*\d))/);
-    if (!nameMatch) return;
-    const name = nameMatch[1].trim();
-    const rest = line.slice(nameMatch[0].length);
+  // 이름+요일+시간 세그먼트 전체 패턴
+  const segPattern = new RegExp(
+    '([가-힣a-zA-Z]+)\\s*(' + DAY_RE + ')\\s*(' + RANGE_RE + ')',
+    'g'
+  );
 
-    // rest 안에서 "요일그룹+시간" 또는 "단일요일+시간" 패턴을 반복 추출
-    // 패턴: (요일조합 | 단일요일) + 시간범위
-    const pattern = /(월수금|화목금|월화수목금|월수|화목|월화|수목|화금|월목|[월화수목금]요일|[월화수목금])\s*(\d{1,2}시\s*\d{1,2}분|\d{1,2}시반|\d{1,2}시|\d{1,2}:\d{2})\s*[-~]\s*(\d{1,2}시\s*\d{1,2}분|\d{1,2}시반|\d{1,2}시|\d{1,2}:\d{2})/g;
+  let m;
+  while ((m = segPattern.exec(cleaned)) !== null) {
+    const fullMatch = m[0];
+    if (weekendKw.some(k => fullMatch.includes(k))) continue;
 
-    let m;
-    while ((m = pattern.exec(rest)) !== null) {
-      const dayStr = m[1];
-      const start = parseTime(m[2]);
-      const end = parseTime(m[3]);
-      if (start === null || end === null) continue;
+    const name = m[1].trim();
+    const dayStr = m[2];
+    const timeRange = m[3];
 
-      let days = [];
-      if (dayGroupMap[dayStr]) {
-        days = dayGroupMap[dayStr];
-      } else {
-        // 단일 요일 or "월요일"
-        const d = dayStr.replace('요일','');
-        if (!['토','일'].includes(d)) days = [d];
-      }
-      if (days.length === 0) continue;
+    const trMatch = timeRange.match(
+      new RegExp('(' + TIME_RE + ')\\s*[-~]\\s*(' + TIME_RE + ')')
+    );
+    if (!trMatch) continue;
 
-      schedules.push({ name, days, start, end, startStr: minToStr(start), endStr: minToStr(end) });
+    const start = parseTime(trMatch[1]);
+    const end = parseTime(trMatch[2]);
+    if (start === null || end === null) continue;
+
+    let days = [];
+    if (dayGroupMap[dayStr]) {
+      days = dayGroupMap[dayStr];
+    } else {
+      const d = dayStr.replace('요일','');
+      if (!['토','일'].includes(d)) days = [d];
     }
-  });
+    if (days.length === 0) continue;
+
+    schedules.push({ name, days, start, end, startStr: minToStr(start), endStr: minToStr(end) });
+  }
 
   const list = document.getElementById('parsedList');
   list.innerHTML = '';
