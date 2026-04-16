@@ -98,6 +98,7 @@ body { font-family: 'Noto Sans KR', sans-serif; background: #f0f2f5; min-height:
           <option value="중1">중1</option>
           <option value="중2">중2</option>
           <option value="중3">중3</option>
+          <option value="고등">고등</option>
         </select>
       </div>
     </div>
@@ -128,6 +129,10 @@ body { font-family: 'Noto Sans KR', sans-serif; background: #f0f2f5; min-height:
       <div class="level-panel-title">수학 레벨 선택</div>
       <div class="level-grid" id="math-levels"></div>
     </div>
+    <div class="level-panel" id="panel-사회">
+      <div class="level-panel-title">사회 선택</div>
+      <div class="level-grid" id="social-levels"></div>
+    </div>
     <div class="level-panel" id="panel-영어">
       <div class="level-panel-title">영어 레벨 선택</div>
       <div class="level-grid" id="eng-levels"></div>
@@ -154,7 +159,7 @@ body { font-family: 'Noto Sans KR', sans-serif; background: #f0f2f5; min-height:
 </div>
 
 <script>
-const ALL_GRADES = ['초4','초5','초6','중1','중2','중3'];
+const ALL_GRADES = ['초4','초5','초6','중1','중2','중3','고등'];
 
 const TIMETABLE = {
   '초4': {
@@ -198,6 +203,14 @@ const TIMETABLE = {
     '사회':     { 월수: ['5:30','7:10','8:50'], 화목: ['6:20','8:00','9:40'] },
     '과학':     { 월수: ['6:20','8:00'], 화목: ['5:30','7:10','8:50','9:40'] },
   },
+  '고등': {
+    '고등국어': { 월수: ['9:40','10:30','11:20'], 화목: ['9:40','10:30'] },
+    '고1수학':  { 월수: ['10:30'], 화목: ['9:40','11:20'] },
+    '고2수학':  { 월수: ['11:20'], 화목: ['10:30'] },
+    '통합사회': { 월수: ['10:30'], 화목: ['11:20'] },
+    '통합과학': { 월수: ['11:20'], 화목: ['10:30'] },
+    '한국사':   { 월: ['11:20'], 목: ['9:40'] },
+  },
 };
 
 const ENGLISH = {
@@ -211,7 +224,7 @@ const ENGLISH = {
   'Grammar Lv.3': { 월: ['6:20'], 화: ['10:30'], 수: ['8:00'], 목: ['8:50'] },
 };
 
-const SOCIAL_KEY = { '중1':'사회1', '중2':'사회', '중3':'사회', '초4':'사회', '초5':'사회', '초6':'사회' };
+const SOCIAL_KEY = { '중1':'사회1', '중2':'사회', '중3':'사회', '초4':'사회', '초5':'사회', '초6':'사회', '고등':'통합사회' };
 
 let schedules = [];
 let selectedSubjects = new Set();
@@ -221,6 +234,7 @@ function onGradeChange() {
   selectedSubjects.clear(); activeCats.clear();
   document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.level-panel').forEach(p => p.classList.remove('show'));
+  document.getElementById('panel-사회').classList.remove('show');
   renderMathLevels(); renderEngLevels(); renderSelectedTags();
 }
 
@@ -228,10 +242,32 @@ function getMathLevels() {
   const levels = [];
   ALL_GRADES.forEach(g => {
     const data = TIMETABLE[g];
-    if (data['수학기본']) levels.push({ key: g+' 수학기본', label: g+' 수학기본' });
-    if (data['수학심화']) levels.push({ key: g+' 수학심화', label: g+' 수학심화' });
+    if (g === '고등') {
+      if (data['고1수학']) levels.push({ key: '고1수학', label: '고1수학' });
+      if (data['고2수학']) levels.push({ key: '고2수학', label: '고2수학' });
+    } else {
+      if (data['수학기본']) levels.push({ key: g+'수학기본', label: g+' 수학기본' });
+      if (data['수학심화']) levels.push({ key: g+'수학심화', label: g+' 수학심화' });
+    }
   });
   return levels;
+}
+
+function getExtraSubjects(grade) {
+  if (grade === '고등') return ['한국사'];
+  return [];
+}
+
+function renderSocialLevels() {
+  const cont = document.getElementById('social-levels');
+  cont.innerHTML = '';
+  [{ key: '통합사회', label: '통합사회' }, { key: '한국사', label: '한국사 (주1회)' }].forEach(({ key, label }) => {
+    const chip = document.createElement('div');
+    chip.className = 'level-chip' + (selectedSubjects.has(key) ? ' selected' : '');
+    chip.textContent = label;
+    chip.onclick = () => toggleLevel(key, chip);
+    cont.appendChild(chip);
+  });
 }
 
 function renderMathLevels() {
@@ -279,8 +315,14 @@ function toggleCat(cat) {
     return;
   }
   const grade = document.getElementById('grade').value;
-  let subjKey = cat === '사회' ? (SOCIAL_KEY[grade] || '사회') : cat;
-  const fullKey = grade + ' ' + subjKey;
+  if (cat === '사회' && grade === '고등') {
+    const panel = document.getElementById('panel-사회');
+    if (activeCats.has(cat)) { activeCats.delete(cat); btn.classList.remove('active'); panel.classList.remove('show'); }
+    else { activeCats.add(cat); btn.classList.add('active'); panel.classList.add('show'); renderSocialLevels(); }
+    return;
+  }
+  let subjKey = cat === '사회' ? (SOCIAL_KEY[grade] || '사회') : cat === '과학' && grade === '고등' ? '통합과학' : cat;
+  const fullKey = grade === '고등' && cat !== '국어' ? subjKey : grade + ' ' + subjKey;
   if (selectedSubjects.has(fullKey)) { selectedSubjects.delete(fullKey); btn.classList.remove('active'); activeCats.delete(cat); }
   else { selectedSubjects.add(fullKey); btn.classList.add('active'); activeCats.add(cat); }
   renderSelectedTags();
@@ -293,7 +335,8 @@ function renderSelectedTags() {
   selectedSubjects.forEach(s => {
     const tag = document.createElement('div');
     tag.className = 'sel-tag';
-    tag.innerHTML = `<span>${s}</span><button onclick="removeSubject('${s}')">×</button>`;
+    const display = (s.includes('Reading') || s.includes('Grammar')) ? s : s.replace(/ /g,'');
+    tag.innerHTML = `<span>${display}</span><button onclick="removeSubject('${s}')">×</button>`;
     cont.appendChild(tag);
   });
 }
@@ -322,7 +365,19 @@ function getSubjData(key) {
     const engKey = key.replace(' (주1회)', '');
     return { type: 'english', data: ENGLISH[engKey], grammar: key.includes('Grammar') };
   }
-  const parts = key.match(/^(초\d|중\d)\s(.+)$/);
+  if (key.includes('한국사')) {
+    const grade = key.match(/^(초\d|중\d|고등)/)?.[0];
+    const data = (TIMETABLE[grade] || {})['한국사'];
+    if (!data) return null;
+    return { type: 'korean_history', data };
+  }
+  // 고등 과목은 학년 없이 바로 찾기
+  if (['고1수학','고2수학','통합사회','통합과학','한국사'].includes(key)) {
+    const data = (TIMETABLE['고등'] || {})[key];
+    if (!data) return null;
+    return { type: key === '한국사' ? 'korean_history' : 'regular', data };
+  }
+  const parts = key.match(/^(초\d|중\d|고등)\s?(.+)$/);
   if (!parts) return null;
   const [, g, subj] = parts;
   const data = (TIMETABLE[g] || {})[subj];
@@ -334,6 +389,12 @@ function getPossibleSlots(key) {
   const info = getSubjData(key);
   if (!info) return [];
   const slots = [];
+  if (info.type === 'korean_history') {
+    ['월','화','수','목','금'].forEach(day => {
+      (info.data[day] || []).forEach(t => { if (!isBlocked(day,t)) slots.push({ days:[day], time:t }); });
+    });
+    return slots;
+  }
   if (info.type === 'english') {
     if (info.grammar) {
       ['월','화','수','목'].forEach(day => { (info.data[day]||[]).forEach(t => { if (!isBlocked(day,t)) slots.push({ days:[day], time:t }); }); });
@@ -383,11 +444,15 @@ function calculate() {
   top.forEach(({ combo }, idx) => {
     html += `<div class="result-section"><div class="result-num">${idx+1}안</div>`;
     Object.entries(combo).forEach(([subj, slot]) => {
-      html += `<div class="result-row"><span class="subj-name">${subj}</span><span class="time-val">${slot.days.join('/')} ${slot.time}</span></div>`;
+      const display = (subj.includes('Reading') || subj.includes('Grammar')) ? subj : subj.replace(/ /g,'');
+      html += `<div class="result-row"><span class="subj-name">${display}</span><span class="time-val">${slot.days.join('/')} ${slot.time}</span></div>`;
     });
     html += '</div>';
     kakaoMsg += `<${idx+1}안>\n`;
-    Object.entries(combo).forEach(([subj, slot]) => { kakaoMsg += `${subj.replace(/ /g,'')} — ${slot.days.join('/')} ${slot.time}\n`; });
+    Object.entries(combo).forEach(([subj, slot]) => {
+      const display = (subj.includes('Reading') || subj.includes('Grammar')) ? subj : subj.replace(/ /g,'');
+      kakaoMsg += `${display} — ${slot.days.join('/')} ${slot.time}\n`;
+    });
     kakaoMsg += '\n';
   });
   kakaoMsg += `${top.length}가지 안 중에 편하신 시간 선택해주세요 😊`;
