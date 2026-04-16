@@ -387,7 +387,7 @@ function calculate() {
     });
     html += '</div>';
     kakaoMsg += `<${idx+1}안>\n`;
-    Object.entries(combo).forEach(([subj, slot]) => { kakaoMsg += `${subj} — ${slot.days.join('/')} ${slot.time}\n`; });
+    Object.entries(combo).forEach(([subj, slot]) => { kakaoMsg += `${subj.replace(/ /g,'')} — ${slot.days.join('/')} ${slot.time}\n`; });
     kakaoMsg += '\n';
   });
   kakaoMsg += `${top.length}가지 안 중에 편하신 시간 선택해주세요 😊`;
